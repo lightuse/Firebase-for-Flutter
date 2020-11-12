@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
@@ -12,11 +13,29 @@ final dummySnapshot = [
 ];
 
 class MyApp extends StatelessWidget {
+  // Create the initialization Future outside of `build`:
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Baby Names',
-      home: MyHomePage(),
+    return FutureBuilder(
+      // Initialize FlutterFire:
+      future: Firebase.initializeApp(),
+      builder: (context, snapshot) {
+
+        // エラー時に表示するWidget
+        if (snapshot.hasError) {
+          return Container(color: Colors.blue);
+        }
+        // Firebaseのinitialize完了したら表示したいWidget
+        if (snapshot.connectionState == ConnectionState.done) {
+          // Check for errors
+          return MaterialApp(
+            title: 'Baby Names',
+            home: MyHomePage(),
+          );
+        }
+        // Firebaseのinitializeが完了するのを待つ間に表示するWidget
+        return Container(color: Colors.white);
+      },
     );
   }
 }
@@ -38,19 +57,25 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   Widget _buildBody(BuildContext context) {
-    // TODO: get actual snapshot from Cloud Firestore
-    return _buildList(context, dummySnapshot);
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('baby').snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return LinearProgressIndicator();
+
+        return _buildList(context, snapshot.data.docs);
+      },
+    );
   }
 
-  Widget _buildList(BuildContext context, List<Map> snapshot) {
+  Widget _buildList(BuildContext context, List<DocumentSnapshot> snapshot) {
     return ListView(
       padding: const EdgeInsets.only(top: 20.0),
       children: snapshot.map((data) => _buildListItem(context, data)).toList(),
     );
   }
 
-  Widget _buildListItem(BuildContext context, Map data) {
-    final record = Record.fromMap(data);
+  Widget _buildListItem(BuildContext context, DocumentSnapshot data) {
+    final record = Record.fromSnapshot(data);
 
     return Padding(
       key: ValueKey(record.name),
@@ -63,7 +88,7 @@ class _MyHomePageState extends State<MyHomePage> {
         child: ListTile(
           title: Text(record.name),
           trailing: Text(record.votes.toString()),
-          onTap: () => print(record),
+            onTap: () => record.reference.update({'votes': FieldValue.increment(1)})
         ),
       ),
     );
@@ -81,8 +106,8 @@ class Record {
         name = map['name'],
         votes = map['votes'];
 
-  //Record.fromSnapshot(DocumentSnapshot snapshot)
-  //    : this.fromMap(snapshot.data, reference: snapshot.reference);
+  Record.fromSnapshot(DocumentSnapshot snapshot)
+      : this.fromMap(snapshot.data(), reference: snapshot.reference);
 
   @override
   String toString() => "Record<$name:$votes>";
