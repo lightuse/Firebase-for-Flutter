@@ -1,22 +1,35 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
-void main() => runApp(MyApp());
-
-final dummySnapshot = [
-  {"name": "Filip", "votes": 15},
-  {"name": "Abraham", "votes": 14},
-  {"name": "Richard", "votes": 11},
-  {"name": "Ike", "votes": 10},
-  {"name": "Justin", "votes": 1},
-];
+void main() {
+  runApp(MyApp());
+}
 
 class MyApp extends StatelessWidget {
+  // Create the initialization Future outside of `build`:
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Baby Names',
-      home: MyHomePage(),
+    return FutureBuilder(
+      // Initialize FlutterFire:
+      future: Firebase.initializeApp(),
+      builder: (context, snapshot) {
+
+        // エラー時に表示するWidget
+        if (snapshot.hasError) {
+          return Container(color: Colors.blue);
+        }
+        // Firebaseのinitialize完了したら表示したいWidget
+        if (snapshot.connectionState == ConnectionState.done) {
+          // Check for errors
+          return MaterialApp(
+            title: 'Baby Names',
+            home: MyHomePage(),
+          );
+        }
+        // Firebaseのinitializeが完了するのを待つ間に表示するWidget
+        return Container(color: Colors.white);
+      },
     );
   }
 }
@@ -39,11 +52,11 @@ class _MyHomePageState extends State<MyHomePage> {
 
   Widget _buildBody(BuildContext context) {
     return StreamBuilder<QuerySnapshot>(
-      stream: Firestore.instance.collection('baby').snapshots(),
+      stream: FirebaseFirestore.instance.collection('baby').snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) return LinearProgressIndicator();
 
-        return _buildList(context, snapshot.data.documents);
+        return _buildList(context, snapshot.data.docs);
       },
     );
   }
@@ -72,7 +85,7 @@ class _MyHomePageState extends State<MyHomePage> {
           trailing: Text(record.votes.toString()),
           //onTap: () => print(record),
           //onTap: () => record.reference.updateData({'votes': record.votes + 1})
-          onTap: () => record.reference.updateData({'votes': FieldValue.increment(1)})
+          onTap: () => record.reference.update({'votes': FieldValue.increment(1)})
         ),
       ),
     );
@@ -91,7 +104,7 @@ class Record {
         votes = map['votes'];
 
   Record.fromSnapshot(DocumentSnapshot snapshot)
-      : this.fromMap(snapshot.data, reference: snapshot.reference);
+      : this.fromMap(snapshot.data(), reference: snapshot.reference);
 
   @override
   String toString() => "Record<$name:$votes>";
